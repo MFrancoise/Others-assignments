@@ -1,0 +1,92 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Windows IIS Web Server with UserData script.",
+
+  "Parameters": {
+    "keyNam": {
+      "Type": "AWS::EC2::KeyPair::KeyName",
+      "Description": "Existing EC2 KeyPair name for decrypting the Windows Administrator password"
+    }
+  },
+
+  "Mappings": {
+    "RegionMap": {
+      "us-east-1": { "AMI": "ami-09639480113b0df96" },
+      "us-east-2": { "AMI": "ami-0f2b4fc905b0bd1f1" },
+      "us-west-1": { "AMI": "ami-0c1bc246476a557bb" },
+      "us-west-2": { "AMI": "ami-0c2b8ca1dad447f8a" }
+    }
+  },
+
+  "Resources": {
+    "IISSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Enable RDP and HTTP access",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 3389,
+            "ToPort": 3389,
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 80,
+            "ToPort": 80,
+            "CidrIp": "0.0.0.0/0"
+          }
+        ]
+      }
+    },
+
+    "IISInstance": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "InstanceType": "t3.micro",
+        "ImageId": {
+          "Fn::FindInMap": [
+            "RegionMap",
+            { "Ref": "AWS::Region" },
+            "AMI"
+          ]
+        },
+        "KeyName": { "Ref": "keyNam" },
+        "SecurityGroupIds": [
+          { "Ref": "IISSecurityGroup" }
+        ],
+		"Tags": [
+          { "Key": "Name", "Value": "MyWindowsforCloudForm" },
+		],
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [
+              "",
+              [
+                "<powershell>\n",
+                "Install-WindowsFeature -name Web-Server -IncludeManagementTools\n",
+                "Set-Content -Path \"C:\\inetpub\\wwwroot\\index.html\" -Value \"<h1>IIS Web Server Deployed via CloudFormation</h1>\"\n",
+                "</powershell>\n"
+              ]
+            ]
+          }
+        }
+      }
+    }
+  },
+
+  "Outputs": {
+    "WebsiteURL": {
+      "Description": "URL of the IIS Web Server",
+      "Value": {
+        "Fn::Join": [
+          "",
+          [
+            "http://",
+            { "Fn::GetAtt": ["IISInstance", "PublicDnsName"] }
+          ]
+        ]
+      }
+    }
+  }
+}
